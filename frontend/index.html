@@ -1,0 +1,294 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <script
+      src="/js/mqtt.min.js"
+      integrity="sha256-kwTnrzz0cOUvq4QlNUqWXv0j1Mly0Qh+RaveDfQQEI0"
+    ></script>
+    <link
+      href="/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3"
+    />
+    <script
+      src="/js/bootstrap.min.js"
+      integrity="sha384-QJHtvGhmr9XOIpI6YVutG+2QOK9T+ZnN4kzFN1RtK3zEFEIsxhlmWl5/YESvpZ13"
+    ></script>
+  </head>
+  <body>
+    <div
+      class="modal fade"
+      id="loginModal"
+      tabindex="-1"
+      role="dialog"
+      aria-labelledby="exampleModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Login</h5>
+          </div>
+          <div class="modal-body">
+            <input
+              type="password"
+              class="form-control"
+              id="mqttPasswordInput"
+              placeholder="Password"
+            />
+            <div class="form-check" style="margin-top: 1rem">
+              <input
+                type="checkbox"
+                class="form-check-input"
+                id="stayLoggedInCheck"
+              />
+              <label class="form-check-label" for="stayLoggedInCheck"
+                >Angemeldet bleiben</label
+              >
+            </div>
+            <div
+              class="alert alert-danger"
+              style="margin-bottom: 0; margin-top: 1rem"
+              id="loginErrorMessage"
+              hidden
+            >
+              Anmeldung fehlgeschlagen
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="doLogin()">
+              Login
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="container" style="max-width: 30rem; margin-top: 1rem">
+      <div class="row justify-content-center" style="margin-bottom: 1rem">
+        <div class="col">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Soll-Status</h5>
+              <div
+                class="alert alert-primary"
+                style="margin-bottom: 0"
+                id="commandedState"
+              >
+                Aus
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row justify-content-center" style="margin-bottom: 1rem">
+        <div class="col">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Ampel Nord</h5>
+              <div class="alert" style="margin-bottom: 0" id="ampelNordState">
+                An
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Ampel Süd</h5>
+              <div class="alert" style="margin-bottom: 0" id="ampelSuedState">
+                Aus
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row justify-content-center" style="margin-bottom: 1rem">
+        <div class="col">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Winde</h5>
+              <div class="alert" style="margin-bottom: 0" id="windeState">
+                Aus
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row justify-content-center" style="margin-bottom: 1rem">
+        <div class="col">
+          <div class="card" style="height: 10rem">
+            <div class="card-body">
+              <h5 class="card-title">Ampelsteuerung</h5>
+              <button
+                type="button"
+                id="actionButton"
+                class="btn btn-primary btn-lg btn-block"
+                style="height: 80%; width: 100%"
+                onclick="buttonClick()"
+              >
+                Anschalten
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row justify-content-center">
+        <div class="col">
+          <button
+            type="button"
+            class="btn btn-primary"
+            onclick="logout()"
+            style="float: right"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+    </div>
+    <script>
+      modal = new bootstrap.Modal(document.getElementById("loginModal"), {
+        backdrop: "static",
+        keyboard: false,
+      });
+
+      let client;
+      let commandedState,
+        ampelSuedState,
+        ampelNordState = false;
+
+      if (readPasswordFromLocalStorage()) {
+        doLogin(readPasswordFromLocalStorage());
+      } else {
+        modal.show();
+      }
+
+      function logout() {
+        window.localStorage.clear();
+        window.location.reload();
+      }
+
+      function readPasswordFromLocalStorage() {
+        return window.localStorage.getItem("mqttPw");
+      }
+
+      function savePasswordToLocalStorage(password) {
+        window.localStorage.setItem("mqttPw", password);
+      }
+
+      function doLogin(password) {
+        if (!password) {
+          window.localStorage.clear();
+          password = document.getElementById("mqttPasswordInput").value;
+        }
+        const myClient = mqtt.connect("ws://$MQTT_BROKER:9001", {
+          username: "user",
+          password,
+        });
+        myClient.on("connect", (res) => {
+          document.getElementById("loginErrorMessage").hidden = true;
+          if (document.getElementById("stayLoggedInCheck").checked) {
+            savePasswordToLocalStorage(password);
+          }
+          client = myClient;
+          setupMqtt();
+          modal.hide();
+        });
+        myClient.on("close", (res) => {
+          window.localStorage.clear();
+          document.getElementById("loginErrorMessage").hidden = false;
+          myClient.end();
+          modal.show();
+        });
+      }
+
+      function setupMqtt() {
+        client.subscribe([
+          "ampel/commandedState",
+          "ampel/stateSued",
+          "ampel/stateNord",
+          "winde/warningLight",
+        ]);
+
+        client.on("message", (topic, payload) => {
+          payload = payload.toString();
+          switch (topic) {
+            case "winde/warningLight": {
+              setWindeState(payload === "on");
+              break;
+            }
+            case "ampel/stateSued": {
+              ampelSuedState = payload === "on";
+              calculateAmpelState("ampelSuedState", ampelSuedState);
+              break;
+            }
+            case "ampel/stateNord": {
+              ampelNordState = payload === "on";
+              calculateAmpelState("ampelNordState", ampelNordState);
+              break;
+            }
+            case "ampel/commandedState": {
+              commandedState = payload === "on";
+              const element = document.getElementById("commandedState");
+              const buttonElement = document.getElementById("actionButton");
+              if (commandedState) {
+                element.innerHTML = "An";
+                buttonElement.innerHTML = "Ampel Ausschalten";
+              } else {
+                element.innerHTML = "Aus";
+                buttonElement.innerHTML = "Ampel Anschalten";
+              }
+              calculateAmpelState("ampelNordState", ampelNordState);
+              calculateAmpelState("ampelSuedState", ampelSuedState);
+              break;
+            }
+          }
+        });
+      }
+
+      function buttonClick() {
+        if (commandedState) {
+          client.publish("ampel/commandedState", "off", {
+            retain: true,
+          });
+        } else {
+          client.publish("ampel/commandedState", "on", {
+            retain: true,
+          });
+        }
+      }
+
+      function setWindeState(state) {
+        if (state) {
+          const element = document.getElementById("windeState");
+          element.innerHTML = "An";
+          element.classList.remove("alert-success");
+          element.classList.add("alert-danger");
+        } else {
+          const element = document.getElementById("windeState");
+          element.innerHTML = "Aus";
+          element.classList.remove("alert-danger");
+          element.classList.add("alert-success");
+        }
+      }
+
+      function calculateAmpelState(id, currentState) {
+        const element = document.getElementById(id);
+        if (currentState) {
+          element.innerHTML = "An";
+        } else {
+          element.innerHTML = "Aus";
+        }
+        if (currentState === commandedState) {
+          element.classList.remove("alert-danger");
+          element.classList.add("alert-success");
+        } else {
+          element.classList.remove("alert-success");
+          element.classList.add("alert-danger");
+        }
+      }
+    </script>
+  </body>
+</html>
