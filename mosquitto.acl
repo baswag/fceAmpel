@@ -1,0 +1,28 @@
+user user
+topic readwrite ampel/commandedState
+topic read ampel/+
+topic read winde/warningLight
+
+user winde
+topic readwrite ampel/commandedState
+topic read ampel/+
+topic readwrite winde/warningLight
+
+user ampelSued
+topic read ampel/commandedState
+topic readwrite ampel/stateSued
+topic deny winde/warningLight
+
+user ampelNord
+topic read ampel/commandedState
+topic readwrite ampel/stateNord
+topic deny winde/warningLight
+
+user startwagen
+topic readwrite ampel/commandedState
+topic read ampel/+
+topic read winde/warningLight
+
+user admin
+topic readwrite ampel/+
+topic readwrite winde/+
