@@ -183,7 +183,7 @@
           window.localStorage.clear();
           password = document.getElementById("mqttPasswordInput").value;
         }
-        const myClient = mqtt.connect("ws://$MQTT_BROKER:9001", {
+        const myClient = mqtt.connect("ws://${window.location.host}/ws", {
           username: "user",
           password,
         });
@@ -275,6 +275,9 @@
       }
 
       function calculateAmpelState(id, currentState) {
+        if (currentState === undefined || currentState === null) {
+          currentState = false;
+        }
         const element = document.getElementById(id);
         if (currentState) {
           element.innerHTML = "An";
