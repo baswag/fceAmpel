@@ -265,6 +265,7 @@ AutoConnectAux ampelSetup;
 AutoConnectAux portSave;
 WiFiClient espClient;
 PubSubClient client(espClient);
+AutoConnectConfig config;
 
 String MQTT_USER;
 String MQTT_PASS;
@@ -480,6 +481,7 @@ void reconnectMqtt() {
       Serial.print("failed, rc=");
       Serial.print(client.state());
       Serial.println(" retrying in 5 seconds");
+      Portal.handleClient();
       delay(5000);
     } else {
       Serial.println(" connected");
@@ -577,6 +579,12 @@ void setup() {
   settingsSave.load(settingsSavePage);
   settingsSave.menu(false);
   settingsSave.on(onConnect);
+  config.auth = AC_AUTH_BASIC;
+  config.authScope = AC_AUTHSCOPE_PORTAL;
+  config.username = WEB_USER;
+  config.password = WEB_PASS;
+  config.psk = PSK;
+  Portal.config(config);
   portSave.load(portSavePage);
   portSave.menu(false);
   portSave.on(savePorts);
@@ -615,7 +623,7 @@ void setup() {
     }
   }
 
-  
+
   Portal.join({settings, settingsSave, portSave});
   Portal.begin();
   Serial.println("Web Server started: " + WiFi.localIP().toString());
