@@ -584,6 +584,7 @@ void setup() {
   config.username = WEB_USER;
   config.password = WEB_PASS;
   config.psk = PSK;
+  config.autoReconnect = true;
   Portal.config(config);
   portSave.load(portSavePage);
   portSave.menu(false);
