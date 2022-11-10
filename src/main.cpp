@@ -200,6 +200,13 @@ const static char* ampelSetupPage PROGMEM = R"(
         "checked": false
       },
       {
+        "name": "numLeds",
+        "type": "ACInput",
+        "apply": "number",
+        "label": "Number of Neopixel LEDs",
+        "value": "2"
+      },
+      {
         "name": "save",
         "type": "ACSubmit",
         "value": "Save",
@@ -279,6 +286,7 @@ bool LED_LOW_ON = true;
 bool WARNING_LIGHT_OUTPUT_LOW_ON = true;
 bool WARNING_LIGHT_INPUT_LOW_ON = true;
 bool USE_NEOPIXEL = false;
+uint8 NUM_LED = 1;
 
 NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma800KbpsMethod>* strip;
 RgbColor neopixelOn(128,0,0);
@@ -340,6 +348,12 @@ void getAmpelParams() {
   LED_PORT = atoi(ampelSetup.getElement<AutoConnectInput>("ledPort").value.c_str());
   LED_LOW_ON = ampelSetup.getElement<AutoConnectCheckbox>("ledLowOn").checked;
   USE_NEOPIXEL = ampelSetup.getElement<AutoConnectCheckbox>("useNeopixel").checked;
+  uint8 NUM_VALUE = atoi(ampelSetup.getElement<AutoConnectInput>("numLeds").value.c_str());
+  if(NUM_VALUE < 1) {
+    NUM_LED = 1;
+  }else {
+    NUM_LED = NUM_VALUE;
+  }
 }
 
 void getParams() {
@@ -447,7 +461,7 @@ void saveStartwagenSettings(const char* paramFile) {
 void saveAmpelSettings(const char* paramFile) {
   LittleFS.begin();
   File param = LittleFS.open(paramFile, "w");
-  ampelSetup.saveElement(param, {"ledPort", "ledLowOn", "useNeopixel"});
+  ampelSetup.saveElement(param, {"ledPort", "ledLowOn", "useNeopixel", "numLeds"});
   param.close();
   LittleFS.end();
 }
@@ -518,11 +532,12 @@ String onConnect(AutoConnectAux& aux, PageArgument& args){
 
 void turnLedOn() {
   if(USE_NEOPIXEL){
-    strip->SetPixelColor(0, neopixelOn);
+    for(int i=0; i<NUM_LED; i++){
+      strip->SetPixelColor(i, neopixelOn);
+    }
     strip->Show();
     return;
-  }
-  if(LED_LOW_ON) {
+  } else if(LED_LOW_ON) {
     digitalWrite(LED_PORT, LOW);
   } else {
     digitalWrite(LED_PORT, HIGH);
@@ -531,11 +546,12 @@ void turnLedOn() {
 
 void turnLedOff() {
   if(USE_NEOPIXEL){
-    strip->SetPixelColor(0, neopixelOff);
+    for(int i=0; i<NUM_LED; i++){
+      strip->SetPixelColor(i, neopixelOff);
+    }
     strip->Show();
     return;
-  }
-  if(LED_LOW_ON) {
+  }else if(LED_LOW_ON) {
     digitalWrite(LED_PORT, HIGH);
   } else {
     digitalWrite(LED_PORT, LOW);
@@ -616,8 +632,11 @@ void setup() {
     Portal.join({ampelSetup});
 
     if(USE_NEOPIXEL) {
-      strip = new NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma800KbpsMethod>(1, 3);
+      strip = new NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma800KbpsMethod>(NUM_LED, 3);
       strip->Begin();
+      for(int i=0; i<NUM_LED; i++){
+        strip->SetPixelColor(i, neopixelOff);
+      }
       strip->Show();
     }else {
       pinMode(LED_PORT, OUTPUT);
