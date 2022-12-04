@@ -288,7 +288,7 @@ bool WARNING_LIGHT_INPUT_LOW_ON = true;
 bool USE_NEOPIXEL = false;
 uint8 NUM_LED = 1;
 
-NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma800KbpsMethod>* strip;
+NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma400KbpsMethod>* strip;
 RgbColor neopixelOn(128,0,0);
 RgbColor neopixelOff(0);
 
@@ -532,8 +532,10 @@ String onConnect(AutoConnectAux& aux, PageArgument& args){
 
 void turnLedOn() {
   if(USE_NEOPIXEL){
-    for(int i=0; i<NUM_LED; i++){
-      strip->SetPixelColor(i, neopixelOn);
+    digitalWrite(13, HIGH);
+    strip->ClearTo(neopixelOn);
+    while(!strip->CanShow()) {
+      
     }
     strip->Show();
     return;
@@ -546,8 +548,10 @@ void turnLedOn() {
 
 void turnLedOff() {
   if(USE_NEOPIXEL){
-    for(int i=0; i<NUM_LED; i++){
-      strip->SetPixelColor(i, neopixelOff);
+    digitalWrite(13, LOW);
+    strip->ClearTo(neopixelOff);
+    while(!strip->CanShow()) {
+
     }
     strip->Show();
     return;
@@ -601,12 +605,14 @@ void setup() {
   config.password = WEB_PASS;
   config.psk = PSK;
   config.autoReconnect = true;
+  config.ota = AC_OTA_BUILTIN;
   Portal.config(config);
   portSave.load(portSavePage);
   portSave.menu(false);
   portSave.on(savePorts);
   loadSettings(SETTINGS_FILE);
-
+  pinMode(13, OUTPUT);
+  digitalWrite(13, HIGH);
   if(MQTT_USER == "winde") {
     windeSetup.load(windeSetupPage);
     windeSetup.menu(true);
@@ -632,7 +638,7 @@ void setup() {
     Portal.join({ampelSetup});
 
     if(USE_NEOPIXEL) {
-      strip = new NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma800KbpsMethod>(NUM_LED, 3);
+      strip = new NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma400KbpsMethod>(NUM_LED, 3);
       strip->Begin();
       for(int i=0; i<NUM_LED; i++){
         strip->SetPixelColor(i, neopixelOff);
@@ -691,6 +697,9 @@ void setLed(){
   }
 }
 
+uint64 counter = 0;
+bool inverted = false;
+
 void loop() {
   bool wifiConnected = WiFi.status() == WL_CONNECTED;
   settings.menu(wifiConnected);
@@ -711,6 +720,14 @@ void loop() {
         client.publish(STATE_TOPIC_SUED, state, true);
         lastPublished = state;
       }
+      if(strip->CanShow() && counter > 32768) {
+        strip->Dirty();
+        strip->Show(false);
+        Serial.println("show");
+        counter=0;
+      }
+      counter++;
+      
       break;
     }
     case ampelNordInt: {
