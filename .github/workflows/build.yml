@@ -1,0 +1,33 @@
+# This is a basic workflow to build a PlatformIO binary for the "D1 Mini Pro" board and upload the firmware as an artifact
+name: Build PlatformIO Binary
+
+# This workflow will run on push events to the repository
+on: [push]
+
+jobs:
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps to be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      # Installs Python 3 and PlatformIO and its dependencies
+      - name: Install PlatformIO
+        run: |
+          pip3 install --upgrade platformio
+      # Builds the PlatformIO binary for the "D1 Mini Pro" board using secret build parameters
+      - name: Build PlatformIO Binary
+        run: export PLATFORMIO_BUILD_FLAGS="'-DPSK=\"${{ secrets.PSK }}\"' '-DWEB_USER=\"fce\"' '-DWEB_PASS=\"${{ secrets.WEB_PASS }}\"'" && pio run -e d1_mini_pro
+
+      # Uploads the firmware binary as an artifact
+      - name: Upload Firmware Binary
+        uses: actions/upload-artifact@v2
+        with:
+          name: firmware-binary
+          path: .pio/build/d1_mini_pro/firmware.bin
