@@ -207,6 +207,13 @@ const static char* ampelSetupPage PROGMEM = R"(
         "value": "2"
       },
       {
+        "name": "blinkIntervalMs",
+        "type": "ACInput",
+        "apply": "number",
+        "label": "Blink Interval for the LEDs (0=disabled),
+        "value": "0"
+      },
+      {
         "name": "save",
         "type": "ACSubmit",
         "value": "Save",
@@ -278,6 +285,7 @@ String MQTT_USER;
 String MQTT_PASS;
 String MQTT_BROKER;
 
+uint32 AMPEL_BLINK_INTERVAL_MS;
 int LED_PORT = 2;
 int WARNING_LIGHT_INPUT_PORT = 3;
 int BUTTON_PORT = 4;
@@ -303,6 +311,7 @@ bool stateNord = false;
 bool stateWindeMqtt = false;
 bool stateWinde = false;
 bool commandedState = false;
+bool isLedOn = false;
 char* state = "off";
 char* lastPublished = "";
 unsigned long lastTrigger = 0;
@@ -354,6 +363,7 @@ void getAmpelParams() {
   }else {
     NUM_LED = NUM_VALUE;
   }
+  AMPEL_BLINK_INTERVAL_MS = atoi(ampelSetup.getElement<AutoConnectInput>("blinkIntervalMs").value.c_str());
 }
 
 void getParams() {
@@ -461,7 +471,7 @@ void saveStartwagenSettings(const char* paramFile) {
 void saveAmpelSettings(const char* paramFile) {
   LittleFS.begin();
   File param = LittleFS.open(paramFile, "w");
-  ampelSetup.saveElement(param, {"ledPort", "ledLowOn", "useNeopixel", "numLeds"});
+  ampelSetup.saveElement(param, {"ledPort", "ledLowOn", "useNeopixel", "numLeds", "blinkIntervalMs"});
   param.close();
   LittleFS.end();
 }
@@ -531,6 +541,7 @@ String onConnect(AutoConnectAux& aux, PageArgument& args){
 }
 
 void turnLedOn() {
+  isLedOn = true;
   if(USE_NEOPIXEL){
     digitalWrite(13, HIGH);
     strip->ClearTo(neopixelOn);
@@ -547,6 +558,7 @@ void turnLedOn() {
 }
 
 void turnLedOff() {
+  isLedOn = false;
   if(USE_NEOPIXEL){
     digitalWrite(13, LOW);
     strip->ClearTo(neopixelOff);
@@ -697,8 +709,33 @@ void setLed(){
   }
 }
 
-uint64 counter = 0;
-bool inverted = false;
+unsigned long previousMillis = 0;
+
+void doAmpel(char *topic) {
+  if(commandedState) {
+    if(AMPEL_BLINK_INTERVAL_MS == 0) {
+      if(!isLedOn){
+        turnLedOn();
+      }
+    }else {
+      unsigned long currentMillis = millis();
+      if(currentMillis - previousMillis > AMPEL_BLINK_INTERVAL_MS) {
+        if(isLedOn) {
+          turnLedOff();
+        }else {
+          turnLedOn();
+        }
+        previousMillis = millis();
+      }
+    }
+  } else if (isLedOn) {
+    turnLedOff();
+  }
+  if(state != lastPublished) {
+    client.publish(topic, state, true);
+    lastPublished = state;
+  }
+}
 
 void loop() {
   bool wifiConnected = WiFi.status() == WL_CONNECTED;
@@ -716,25 +753,11 @@ void loop() {
   windeSetup.menu(mqttUserInt == windeInt);
   switch(mqttUserInt) {
     case ampelSuedInt: {
-      if(state != lastPublished) {
-        client.publish(STATE_TOPIC_SUED, state, true);
-        lastPublished = state;
-      }
-      if(strip->CanShow() && counter > 32768) {
-        strip->Dirty();
-        strip->Show(false);
-        Serial.println("show");
-        counter=0;
-      }
-      counter++;
-      
+      doAmpel(STATE_TOPIC_SUED);
       break;
     }
     case ampelNordInt: {
-      if(state != lastPublished) {
-        client.publish(STATE_TOPIC_NORD, state, true);
-        lastPublished = state;
-      }
+      doAmpel(STATE_TOPIC_NORD);
       break;
     }
     case startwagenInt: {
