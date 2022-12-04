@@ -12,7 +12,7 @@ jobs:
     # Steps to be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -27,7 +27,7 @@ jobs:
 
       # Uploads the firmware binary as an artifact
       - name: Upload Firmware Binary
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: firmware-binary
           path: .pio/build/d1_mini_pro/firmware.bin
