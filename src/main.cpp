@@ -6,268 +6,15 @@
 #include "LittleFS.h"
 #include <NeoPixelBus.h>
 #include <string>
-
-#define SETTINGS_FILE              "/settings.json"
-#define PORT_FILE                  "/ports.json"
-#define COMMAND_TOPIC              "ampel/commandedState"
-#define STATE_TOPIC_SUED           "ampel/stateSued"
-#define STATE_TOPIC_NORD           "ampel/stateNord"
-#define STATE_TOPIC_WINDE_WARNING  "winde/warningLight"
-
-constexpr unsigned int str2int(const char* str, int h = 0)
-{
-    return !str[h] ? 5381 : (str2int(str, h+1) * 33) ^ str[h];
-}
-
-const static char* settingsPage PROGMEM = R"(
-  {
-   "title": "Settings",
-   "uri": "/settings",
-   "menu": false,
-   "element": [
-     {
-       "name": "broker",
-       "type": "ACInput",
-       "value": "",
-       "label": "MQTT Broker"
-     },
-     {
-       "name": "user",
-       "type": "ACSelect",
-       "label": "MQTT User",
-       "option": [
-         "startwagen",
-         "winde",
-         "ampelSued",
-         "ampelNord"
-       ]
-     },
-     {
-      "name": "password",
-      "type": "ACInput",
-      "label": "MQTT Password",
-      "apply": "password"
-     },
-     {
-      "name": "save",
-      "type": "ACSubmit",
-      "value": "Save",
-      "uri": "/settings_save"
-    },
-    {
-      "name": "discard",
-      "type": "ACSubmit",
-      "value": "Discard",
-      "uri": "/_ac"
-    }
-   ]
-  }
-)";
-
-const static char* windeSetupPage PROGMEM = R"(
-  {
-    "title": "Port Setup",
-    "uri": "/settings_winde",
-    "menu": false,
-    "element": [
-      {
-        "name": "buttonPort",
-        "type": "ACInput",
-        "apply": "number",
-        "label": "Button Port",
-        "value": "4"
-      },
-      {
-        "name": "ledPort",
-        "type": "ACInput",
-        "apply": "number",
-        "label": "LED Port",
-        "value": "2"
-      },
-      {
-        "name": "ledLowOn",
-        "type": "ACCheckbox",
-        "label": "LED On LOW",
-        "checked": true
-      },
-      {
-        "name": "warningLightInputPort",
-        "type": "ACInput",
-        "apply": "number",
-        "label": "Warning Light Input Port",
-        "value": "3"
-      },
-      {
-        "name": "warningLightInputLowOn",
-        "type": "ACCheckbox",
-        "label": "Warning Light Input On LOW",
-        "checked": true
-      },
-      {
-        "name": "save",
-        "type": "ACSubmit",
-        "value": "Save",
-        "uri": "/ports_save"
-      },
-      {
-        "name": "discard",
-        "type": "ACSubmit",
-        "value": "Discard",
-        "uri": "/_ac"
-      }
-    ]
-  }
-)";
-
-const static char* startwagenSetupPage PROGMEM = R"(
-  {
-    "title": "Port Setup",
-    "uri": "/settings_startwagen",
-    "menu": false,
-    "element": [
-      {
-        "name": "buttonPort",
-        "type": "ACInput",
-        "apply": "number",
-        "label": "Button Port",
-        "value": "4"
-      },
-      {
-        "name": "ledPort",
-        "type": "ACInput",
-        "apply": "number",
-        "label": "LED Port",
-        "value": "2"
-      },
-      {
-        "name": "ledLowOn",
-        "type": "ACCheckbox",
-        "label": "LED On LOW",
-        "checked": true
-      },
-      {
-        "name": "warningLightOutputPort",
-        "type": "ACInput",
-        "apply": "number",
-        "label": "Warning Light Output Port",
-        "value": "3"
-      },
-      {
-        "name": "warningLightOutputLowOn",
-        "type": "ACCheckbox",
-        "label": "Warning Light Output On LOW",
-        "checked": true
-      },
-      {
-        "name": "save",
-        "type": "ACSubmit",
-        "value": "Save",
-        "uri": "/ports_save"
-      },
-      {
-        "name": "discard",
-        "type": "ACSubmit",
-        "value": "Discard",
-        "uri": "/_ac"
-      }
-    ]
-  }
-)";
-
-const static char* ampelSetupPage PROGMEM = R"(
-  {
-    "title": "Port Setup",
-    "uri": "/settings_ampel",
-    "menu": false,
-    "element": [
-      {
-        "name": "ledPort",
-        "type": "ACInput",
-        "apply": "number",
-        "label": "LED Port",
-        "value": "2"
-      },
-      {
-        "name": "ledLowOn",
-        "type": "ACCheckbox",
-        "label": "LED On LOW",
-        "checked": true
-      },
-      {
-        "name": "useNeopixel",
-        "type": "ACCheckbox",
-        "label": "Use Neopixel?",
-        "checked": false
-      },
-      {
-        "name": "numLeds",
-        "type": "ACInput",
-        "apply": "number",
-        "label": "Number of Neopixel LEDs",
-        "value": "2"
-      },
-      {
-        "name": "blinkIntervalMs",
-        "type": "ACInput",
-        "apply": "number",
-        "label": "Blink Interval for the LEDs (0=disabled),
-        "value": "0"
-      },
-      {
-        "name": "save",
-        "type": "ACSubmit",
-        "value": "Save",
-        "uri": "/ports_save"
-      },
-      {
-        "name": "discard",
-        "type": "ACSubmit",
-        "value": "Discard",
-        "uri": "/_ac"
-      }
-    ]
-  }
-)";
-
-const static char* portSavePage PROGMEM = R"(
-  {
-  "title": "Port Setup",
-  "uri": "/ports_save",
-  "menu": false,
-  "element": [
-    {
-      "name": "Result",
-      "type": "ACText"
-    },
-    {
-      "name": "OK",
-      "type": "ACSubmit",
-      "value": "OK",
-      "uri": "/_ac/reset"
-    }
-  ]
-}
-)";
-
-const static char* settingsSavePage PROGMEM = R"(
-{
-  "title": "Settings",
-  "uri": "/settings_save",
-  "menu": false,
-  "element": [
-    {
-      "name": "Result",
-      "type": "ACText"
-    },
-    {
-      "name": "OK",
-      "type": "ACSubmit",
-      "value": "OK. Reset Device",
-      "uri": "/_ac/reset"
-    }
-  ]
-}
-)";
+#include "ampelSetupPage.h"
+#include "portSavePage.h"
+#include "settingsPage.h"
+#include "settingsSavePage.h"
+#include "startwagenSetupPage.h"
+#include "windeSetupPage.h"
+#include "tools.h"
+#include "consts.h"
+#include "config.h"
 
 ESP8266WebServer Server;
 AutoConnect Portal(Server);
@@ -281,29 +28,15 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 AutoConnectConfig config;
 
-String MQTT_USER;
-String MQTT_PASS;
-String MQTT_BROKER;
-
-uint32 AMPEL_BLINK_INTERVAL_MS;
-int LED_PORT = 2;
-int WARNING_LIGHT_INPUT_PORT = 3;
-int BUTTON_PORT = 4;
-int WARNING_LIGHT_PORT = 3;
-bool LED_LOW_ON = true;
-bool WARNING_LIGHT_OUTPUT_LOW_ON = true;
-bool WARNING_LIGHT_INPUT_LOW_ON = true;
-bool USE_NEOPIXEL = false;
-uint8 NUM_LED = 1;
+MqttConfiguration mqttConfig;
+AmpelConfiguration ampelConfig;
+AmpelConfigurationLoader* configLoader;
+MqttConfigurationLoader* mqttConfigLoader;
 
 NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma400KbpsMethod>* strip;
 RgbColor neopixelOn(128,0,0);
 RgbColor neopixelOff(0);
 
-const int windeInt = str2int("winde");
-const int startwagenInt = str2int("startwagen");
-const int ampelSuedInt = str2int("ampelSued");
-const int ampelNordInt = str2int("ampelNord");
 int mqttUserInt;
 
 bool stateSued = false;
@@ -317,7 +50,7 @@ char* lastPublished = "";
 unsigned long lastTrigger = 0;
 
 IRAM_ATTR void buttonPressed() {
-  if(MQTT_USER != "winde" && MQTT_USER != "startwagen"){
+  if(mqttConfig.user != "winde" && mqttConfig.user != "startwagen"){
     return;
   }
   unsigned long time = millis();
@@ -337,171 +70,23 @@ void rootPage() {
   Server.send(200, "text/plain", "Hello World!");
 }
 
-void getWindeParams() {
-  BUTTON_PORT = atoi(windeSetup.getElement<AutoConnectInput>("buttonPort").value.c_str());
-  WARNING_LIGHT_INPUT_PORT = atoi(windeSetup.getElement<AutoConnectInput>("warningLightInputPort").value.c_str());
-  LED_PORT = atoi(windeSetup.getElement<AutoConnectInput>("ledPort").value.c_str());
-  LED_LOW_ON = windeSetup.getElement<AutoConnectCheckbox>("ledLowOn").checked;
-  WARNING_LIGHT_INPUT_LOW_ON = windeSetup.getElement<AutoConnectCheckbox>("warningLightInputLowOn").checked;
-}
-
-void getStartwagenParams() {
-  BUTTON_PORT = atoi(startwagenSetup.getElement<AutoConnectInput>("buttonPort").value.c_str());
-  WARNING_LIGHT_PORT = atoi(startwagenSetup.getElement<AutoConnectInput>("warningLightOutputPort").value.c_str());
-  LED_PORT = atoi(startwagenSetup.getElement<AutoConnectInput>("ledPort").value.c_str());
-  LED_LOW_ON = startwagenSetup.getElement<AutoConnectCheckbox>("ledLowOn").checked;
-  WARNING_LIGHT_OUTPUT_LOW_ON = startwagenSetup.getElement<AutoConnectCheckbox>("warningLightOutputLowOn").checked;
-}
-
-void getAmpelParams() {
-  LED_PORT = atoi(ampelSetup.getElement<AutoConnectInput>("ledPort").value.c_str());
-  LED_LOW_ON = ampelSetup.getElement<AutoConnectCheckbox>("ledLowOn").checked;
-  USE_NEOPIXEL = ampelSetup.getElement<AutoConnectCheckbox>("useNeopixel").checked;
-  uint8 NUM_VALUE = atoi(ampelSetup.getElement<AutoConnectInput>("numLeds").value.c_str());
-  if(NUM_VALUE < 1) {
-    NUM_LED = 1;
-  }else {
-    NUM_LED = NUM_VALUE;
-  }
-  AMPEL_BLINK_INTERVAL_MS = atoi(ampelSetup.getElement<AutoConnectInput>("blinkIntervalMs").value.c_str());
-}
-
-void getParams() {
-  MQTT_BROKER = settings.getElement<AutoConnectInput>("broker").value;
-  MQTT_BROKER.trim();
-  MQTT_USER = settings.getElement<AutoConnectSelect>("user").value();
-  MQTT_USER.trim();
-  MQTT_PASS = settings.getElement<AutoConnectInput>("password").value;
-  MQTT_PASS.trim();
-}
-
-void loadWindeSettings(const char* paramFile) {
-  LittleFS.begin();
-  File param = LittleFS.open(paramFile, "r");
-  if (param) {
-    bool rc = windeSetup.loadElement(param);    // Load the elements with parameters
-    if (rc){
-      getWindeParams();
-      Serial.println(String(paramFile) + " loaded");
-    }
-    else{
-      Serial.println(String(paramFile) + " failed to load");
-    }
-    param.close();
-  }
-  LittleFS.end();
-}
-
-void loadStartwagenSettings(const char* paramFile) {
-  LittleFS.begin();
-  File param = LittleFS.open(paramFile, "r");
-  if (param) {
-    bool rc = startwagenSetup.loadElement(param);    // Load the elements with parameters
-    if (rc){
-      getStartwagenParams();
-      Serial.println(String(paramFile) + " loaded");
-    }
-    else{
-      Serial.println(String(paramFile) + " failed to load");
-    }
-    param.close();
-  }
-  LittleFS.end();
-}
-
-void loadAmpelSettings(const char* paramFile) {
-  LittleFS.begin();
-  File param = LittleFS.open(paramFile, "r");
-  if (param) {
-    bool rc = ampelSetup.loadElement(param);    // Load the elements with parameters
-    if (rc){
-      getAmpelParams();
-      Serial.println(String(paramFile) + " loaded");
-    }
-    else{
-      Serial.println(String(paramFile) + " failed to load");
-    }
-    param.close();
-  }
-  LittleFS.end();
-}
-
-void loadSettings(const char* paramFile) {
-  LittleFS.begin();
-  File param = LittleFS.open(paramFile, "r");
-  if (param) {
-    bool rc = settings.loadElement(param);    // Load the elements with parameters
-    if (rc){
-      getParams();
-      Serial.println(String(paramFile) + " loaded");
-    }
-    else{
-      Serial.println(String(paramFile) + " failed to load");
-    }
-    param.close();
-  }
-  LittleFS.end();
-}
-
-void saveSettings(const char* paramFile) {
-  LittleFS.begin();
-  File param = LittleFS.open(paramFile, "w");
-  settings.saveElement(param, { "broker", "user", "password" });
-  param.close();
-  LittleFS.remove(PORT_FILE);
-  LittleFS.end();
-}
-
-void saveWindeSettings(const char* paramFile) {
-  LittleFS.begin();
-  File param = LittleFS.open(paramFile, "w");
-  windeSetup.saveElement(param, {"buttonPort", "ledPort", "warningLightInputPort", "ledLowOn", "warningLightInputLowOn" });
-  param.close();
-  LittleFS.end();
-}
-
-void saveStartwagenSettings(const char* paramFile) {
-  LittleFS.begin();
-  File param = LittleFS.open(paramFile, "w");
-  startwagenSetup.saveElement(param, {"buttonPort", "ledPort", "warningLightOutputPort", "ledLowOn",  "warningLightOutputLowOn" });
-  param.close();
-  LittleFS.end();
-}
-
-void saveAmpelSettings(const char* paramFile) {
-  LittleFS.begin();
-  File param = LittleFS.open(paramFile, "w");
-  ampelSetup.saveElement(param, {"ledPort", "ledLowOn", "useNeopixel", "numLeds", "blinkIntervalMs"});
-  param.close();
-  LittleFS.end();
-}
-
 String savePorts(AutoConnectAux& aux, PageArgument& args) {
   AutoConnectText& result = aux.getElement<AutoConnectText>("Result");
-  if(MQTT_USER == "winde") {
-    getWindeParams();
-    saveWindeSettings(PORT_FILE);
-  } else if (MQTT_USER == "startwagen") {
-    getStartwagenParams();
-    saveStartwagenSettings(PORT_FILE);
-  } else if (MQTT_USER == "ampelSued" || MQTT_USER == "ampelNord") {
-    getAmpelParams();
-    saveAmpelSettings(PORT_FILE);
-  }
+  configLoader->saveConfiguration("undefined");
   
   result.value = "Saved. Click OK to restart Device";
   return String();
 }
 
 void reconnectMqtt() {
-  if(MQTT_USER.length() == 0) {
+  if(mqttConfig.user.length() == 0) {
     return;
   }
-  mqttUserInt = str2int(MQTT_USER.c_str());
-  client.setServer(MQTT_BROKER.c_str(), 1883);
+  mqttUserInt = str2int(mqttConfig.user.c_str());
+  client.setServer(mqttConfig.broker.c_str(), 1883);
   while(!client.connected()){
     Serial.print("Reconnecting mqtt...");
-    if(!client.connect(MQTT_USER.c_str(), MQTT_USER.c_str(), MQTT_PASS.c_str())) {
+    if(!client.connect(mqttConfig.user.c_str(), mqttConfig.user.c_str(), mqttConfig.password.c_str())) {
       Serial.print("failed, rc=");
       Serial.print(client.state());
       Serial.println(" retrying in 5 seconds");
@@ -527,12 +112,12 @@ void reconnectMqtt() {
 }
 
 String onConnect(AutoConnectAux& aux, PageArgument& args){
-  getParams();
+  mqttConfig = mqttConfigLoader->getConfigFromInput();
 
   reconnectMqtt();
   AutoConnectText& result = aux.getElement<AutoConnectText>("Result");
   if(client.connected()) {
-    saveSettings(SETTINGS_FILE);
+    mqttConfigLoader->saveConfiguration(PORT_FILE);
     result.value = "Connected";
   } else {
     result.value = "Error";
@@ -542,7 +127,7 @@ String onConnect(AutoConnectAux& aux, PageArgument& args){
 
 void turnLedOn() {
   isLedOn = true;
-  if(USE_NEOPIXEL){
+  if(ampelConfig.useNeopixel){
     digitalWrite(13, HIGH);
     strip->ClearTo(neopixelOn);
     while(!strip->CanShow()) {
@@ -550,16 +135,16 @@ void turnLedOn() {
     }
     strip->Show();
     return;
-  } else if(LED_LOW_ON) {
-    digitalWrite(LED_PORT, LOW);
+  } else if(ampelConfig.ledLowOn) {
+    digitalWrite(ampelConfig.ledPort, LOW);
   } else {
-    digitalWrite(LED_PORT, HIGH);
+    digitalWrite(ampelConfig.ledPort, HIGH);
   }
 }
 
 void turnLedOff() {
   isLedOn = false;
-  if(USE_NEOPIXEL){
+  if(ampelConfig.useNeopixel){
     digitalWrite(13, LOW);
     strip->ClearTo(neopixelOff);
     while(!strip->CanShow()) {
@@ -567,10 +152,10 @@ void turnLedOff() {
     }
     strip->Show();
     return;
-  }else if(LED_LOW_ON) {
-    digitalWrite(LED_PORT, HIGH);
+  }else if(ampelConfig.ledLowOn) {
+    digitalWrite(ampelConfig.ledPort, HIGH);
   } else {
-    digitalWrite(LED_PORT, LOW);
+    digitalWrite(ampelConfig.ledPort, LOW);
   }
 }
 
@@ -622,42 +207,48 @@ void setup() {
   portSave.load(portSavePage);
   portSave.menu(false);
   portSave.on(savePorts);
-  loadSettings(SETTINGS_FILE);
+  mqttConfigLoader = new MqttConfigurationLoader(SETTINGS_FILE, { "broker", "user", "password" }, settings);
+  mqttConfigLoader->loadConfiguration();
+  mqttConfig = mqttConfigLoader->getConfigFromInput();
   pinMode(13, OUTPUT);
   digitalWrite(13, HIGH);
-  if(MQTT_USER == "winde") {
+  if(mqttConfig.user == "winde") {
     windeSetup.load(windeSetupPage);
     windeSetup.menu(true);
-    loadWindeSettings(PORT_FILE);
-    pinMode(BUTTON_PORT, INPUT_PULLUP);
-    pinMode(WARNING_LIGHT_INPUT_PORT, INPUT);
-    pinMode(LED_PORT, OUTPUT);
-    attachInterrupt(digitalPinToInterrupt(BUTTON_PORT), buttonPressed, FALLING);
+    configLoader = new AmpelConfigurationLoader(PORT_FILE, {"buttonPort", "ledPort", "warningLightInputPort", "ledLowOn", "warningLightInputLowOn" }, windeSetup);
+    configLoader->loadConfiguration();
+    ampelConfig = configLoader->getConfigFromInput();
+    pinMode(ampelConfig.buttonPort, INPUT_PULLUP);
+    pinMode(ampelConfig.warningLightInputPort, INPUT);
+    pinMode(ampelConfig.ledPort, OUTPUT);
+    attachInterrupt(digitalPinToInterrupt(ampelConfig.buttonPort), buttonPressed, FALLING);
     Portal.join({windeSetup});
-  } else if(MQTT_USER == "startwagen") {
+  } else if(mqttConfig.user == "startwagen") {
     startwagenSetup.load(startwagenSetupPage);
     startwagenSetup.menu(true);
-    loadStartwagenSettings(PORT_FILE);
-    pinMode(BUTTON_PORT, INPUT_PULLUP);
-    pinMode(WARNING_LIGHT_PORT, OUTPUT);
-    pinMode(LED_PORT, OUTPUT);
-    attachInterrupt(digitalPinToInterrupt(BUTTON_PORT), buttonPressed, FALLING);
+    configLoader = new AmpelConfigurationLoader(PORT_FILE, {"buttonPort", "ledPort", "warningLightOutputPort", "ledLowOn",  "warningLightOutputLowOn" }, startwagenSetup);
+    configLoader->loadConfiguration();
+    ampelConfig = configLoader->getConfigFromInput();
+    pinMode(ampelConfig.buttonPort, INPUT_PULLUP);
+    pinMode(ampelConfig.warningLightOutputPort, OUTPUT);
+    pinMode(ampelConfig.ledPort, OUTPUT);
+    attachInterrupt(digitalPinToInterrupt(ampelConfig.buttonPort), buttonPressed, FALLING);
     Portal.join({startwagenSetup});
-  } else if(MQTT_USER == "ampelSued" || MQTT_USER == "ampelNord") {
+  } else if(mqttConfig.user == "ampelSued" || mqttConfig.user == "ampelNord") {
     ampelSetup.load(ampelSetupPage);
     ampelSetup.menu(true);
-    loadAmpelSettings(PORT_FILE);
+    configLoader = new AmpelConfigurationLoader(PORT_FILE, {"ledPort", "ledLowOn", "useNeopixel", "numLeds", "blinkIntervalMs"}, ampelSetup);
+    configLoader->loadConfiguration();
+    ampelConfig = configLoader->getConfigFromInput();
     Portal.join({ampelSetup});
 
-    if(USE_NEOPIXEL) {
-      strip = new NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma400KbpsMethod>(NUM_LED, 3);
+    if(ampelConfig.useNeopixel) {
+      strip = new NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma400KbpsMethod>(ampelConfig.numLeds, 3);
       strip->Begin();
-      for(int i=0; i<NUM_LED; i++){
-        strip->SetPixelColor(i, neopixelOff);
-      }
+      strip->ClearTo(neopixelOff);
       strip->Show();
     }else {
-      pinMode(LED_PORT, OUTPUT);
+      pinMode(ampelConfig.ledPort, OUTPUT);
     }
   }
 
@@ -713,13 +304,13 @@ unsigned long previousMillis = 0;
 
 void doAmpel(char *topic) {
   if(commandedState) {
-    if(AMPEL_BLINK_INTERVAL_MS == 0) {
+    if(ampelConfig.blinkIntervalMs == 0) {
       if(!isLedOn){
         turnLedOn();
       }
     }else {
       unsigned long currentMillis = millis();
-      if(currentMillis - previousMillis > AMPEL_BLINK_INTERVAL_MS) {
+      if(currentMillis - previousMillis > ampelConfig.blinkIntervalMs) {
         if(isLedOn) {
           turnLedOff();
         }else {
@@ -762,16 +353,16 @@ void loop() {
     }
     case startwagenInt: {
       if(stateWinde) {
-        if(WARNING_LIGHT_OUTPUT_LOW_ON) {
-          digitalWrite(WARNING_LIGHT_PORT, LOW);
+        if(ampelConfig.warningLightOutputLowOn) {
+          digitalWrite(ampelConfig.warningLightOutputPort, LOW);
         }else {
-          digitalWrite(WARNING_LIGHT_PORT, HIGH);
+          digitalWrite(ampelConfig.warningLightOutputPort, HIGH);
         }
       }else {
-        if(WARNING_LIGHT_OUTPUT_LOW_ON) {
-          digitalWrite(WARNING_LIGHT_PORT, HIGH);
+        if(ampelConfig.warningLightOutputLowOn) {
+          digitalWrite(ampelConfig.warningLightOutputPort, HIGH);
         }else {
-          digitalWrite(WARNING_LIGHT_PORT, LOW);
+          digitalWrite(ampelConfig.warningLightOutputPort, LOW);
         }
       }
       setLed();
@@ -779,10 +370,10 @@ void loop() {
     }
     case windeInt: {
       bool stateWinde;
-      if(WARNING_LIGHT_INPUT_LOW_ON) {
-        stateWinde = digitalRead(WARNING_LIGHT_INPUT_PORT) == LOW;
+      if(ampelConfig.warningLightInputLowOn) {
+        stateWinde = digitalRead(ampelConfig.warningLightInputPort) == LOW;
       } else {
-        stateWinde = digitalRead(WARNING_LIGHT_INPUT_PORT) == HIGH;
+        stateWinde = digitalRead(ampelConfig.warningLightInputPort) == HIGH;
       }
 
       if (stateWinde != stateWindeMqtt) {
