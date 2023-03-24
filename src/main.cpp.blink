@@ -1,0 +1,61 @@
+#include <Arduino.h>
+#include <NeoPixelBus.h>
+#include <string>
+#include "config.h"
+
+NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma800KbpsMethod>* strip;
+RgbColor neopixelOn(128,0,0);
+RgbColor neopixelOff(0);
+
+bool isLedOn = false;
+
+void turnLedOn() {
+  isLedOn = true;
+    digitalWrite(13, HIGH);
+    delay(50);
+    strip->ClearTo(neopixelOn);
+    while(!strip->CanShow()) {
+      
+    }
+    strip->Show();
+    Serial.println("on");
+}
+
+void turnLedOff() {
+  isLedOn = false;
+    strip->ClearTo(neopixelOff);
+    while(!strip->CanShow()) {
+
+    }
+    strip->Show();
+    delay(50);
+    digitalWrite(13, LOW);
+    Serial.println("off");
+}
+
+void setup() {
+  // ESP.eraseConfig();
+  Serial.begin(115200);
+  Serial.println();
+  pinMode(13, OUTPUT);
+  digitalWrite(13, HIGH);
+  
+strip = new NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma800KbpsMethod>(2, 3);
+strip->Begin();
+strip->ClearTo(neopixelOff);
+strip->Show();
+}
+
+unsigned long previousMillis = 0;
+
+void loop() {
+  unsigned long currentMillis = millis();
+      if(currentMillis - previousMillis > 1000) {
+        if(isLedOn) {
+          turnLedOff();
+        }else {
+          turnLedOn();
+        }
+        previousMillis = millis();
+      }
+}

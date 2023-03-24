@@ -37,7 +37,7 @@ const static char* ampelSetupPage PROGMEM = R"(
         "name": "blinkIntervalMs",
         "type": "ACInput",
         "apply": "number",
-        "label": "Blink Interval for the LEDs (0=disabled),
+        "label": "Blink Interval for the LEDs, 0=disabled",
         "value": "0"
       },
       {

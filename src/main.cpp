@@ -33,11 +33,11 @@ AmpelConfiguration ampelConfig;
 AmpelConfigurationLoader* configLoader;
 MqttConfigurationLoader* mqttConfigLoader;
 
-NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma400KbpsMethod>* strip;
+NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma800KbpsMethod>* strip;
 RgbColor neopixelOn(128,0,0);
 RgbColor neopixelOff(0);
 
-int mqttUserInt;
+int mqttUserInt = 0;
 
 bool stateSued = false;
 bool stateNord = false;
@@ -64,6 +64,11 @@ IRAM_ATTR void buttonPressed() {
       commandedState = true;
     }
   }
+}
+
+void wifiConnected(IPAddress& ip) {
+  config.ota = AC_OTA_BUILTIN;
+  Portal.config(config);
 }
 
 void rootPage() {
@@ -126,9 +131,11 @@ String onConnect(AutoConnectAux& aux, PageArgument& args){
 }
 
 void turnLedOn() {
+  Serial.println('turnLedOn');
   isLedOn = true;
   if(ampelConfig.useNeopixel){
     digitalWrite(13, HIGH);
+    delay(50);
     strip->ClearTo(neopixelOn);
     while(!strip->CanShow()) {
       
@@ -143,14 +150,16 @@ void turnLedOn() {
 }
 
 void turnLedOff() {
+  Serial.println('turnLedOff');
   isLedOn = false;
   if(ampelConfig.useNeopixel){
-    digitalWrite(13, LOW);
     strip->ClearTo(neopixelOff);
     while(!strip->CanShow()) {
 
     }
     strip->Show();
+    delay(50);
+    digitalWrite(13, LOW);
     return;
   }else if(ampelConfig.ledLowOn) {
     digitalWrite(ampelConfig.ledPort, HIGH);
@@ -160,12 +169,14 @@ void turnLedOff() {
 }
 
 void mqttCallback(char* topic, byte* message, unsigned int length) {
-  Serial.print("Message arrived on topic: ");
+  Serial.print("Message arrived on topic ");
   Serial.print(topic);
   String messageTemp;
   for (int i = 0; i < length; i++) {
     messageTemp += (char)message[i];
   }
+  Serial.print(": ");
+  Serial.print(messageTemp);
   Serial.println();
   if (String(topic) == COMMAND_TOPIC) {
     commandedState = messageTemp == "on";
@@ -202,7 +213,6 @@ void setup() {
   config.password = WEB_PASS;
   config.psk = PSK;
   config.autoReconnect = true;
-  config.ota = AC_OTA_BUILTIN;
   Portal.config(config);
   portSave.load(portSavePage);
   portSave.menu(false);
@@ -243,7 +253,7 @@ void setup() {
     Portal.join({ampelSetup});
 
     if(ampelConfig.useNeopixel) {
-      strip = new NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma400KbpsMethod>(ampelConfig.numLeds, 3);
+      strip = new NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma800KbpsMethod>(ampelConfig.numLeds, 3);
       strip->Begin();
       strip->ClearTo(neopixelOff);
       strip->Show();
@@ -252,7 +262,9 @@ void setup() {
     }
   }
 
-
+  startwagenSetup.menu(mqttUserInt == startwagenInt);
+  windeSetup.menu(mqttUserInt == windeInt);
+  Portal.onConnect(wifiConnected);
   Portal.join({settings, settingsSave, portSave});
   Portal.begin();
   Serial.println("Web Server started: " + WiFi.localIP().toString());
@@ -332,7 +344,14 @@ void loop() {
   bool wifiConnected = WiFi.status() == WL_CONNECTED;
   settings.menu(wifiConnected);
 
+  if(mqttUserInt == 0) {
+    Serial.println("no mqtt user");
+    Portal.handleClient();
+    return;
+  }
+
   if(!wifiConnected){
+    Serial.println('Waiting for connection');
     Portal.handleClient();
   }
   if(!client.connected() && wifiConnected){
@@ -340,8 +359,6 @@ void loop() {
     Portal.handleClient();
   }
   client.loop();
-  startwagenSetup.menu(mqttUserInt == startwagenInt);
-  windeSetup.menu(mqttUserInt == windeInt);
   switch(mqttUserInt) {
     case ampelSuedInt: {
       doAmpel(STATE_TOPIC_SUED);
@@ -379,8 +396,10 @@ void loop() {
       if (stateWinde != stateWindeMqtt) {
         stateWindeMqtt = stateWinde;
         if (stateWinde) {
+          Serial.println("Winde is now on, publishing on mqtt");
           client.publish(STATE_TOPIC_WINDE_WARNING, "on", true);
         } else {
+          Serial.println("Winde is now off, publishing on mqtt");
           client.publish(STATE_TOPIC_WINDE_WARNING, "off", true);
         }
       }
