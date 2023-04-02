@@ -178,16 +178,22 @@
         window.localStorage.setItem("mqttPw", password);
       }
 
+      let connectionAttempts = 0;
+      let connectionSuccess = false;
+
       function doLogin(password) {
         if (!password) {
           window.localStorage.clear();
           password = document.getElementById("mqttPasswordInput").value;
         }
-        const myClient = mqtt.connect("ws://${window.location.host}/ws", {
+        const myClient = mqtt.connect(`ws://${window.location.host}/ws`, {
           username: "user",
           password,
+          keepalive: 0
         });
         myClient.on("connect", (res) => {
+          connectionSuccess = true;
+          connectionAttempts = 0;
           document.getElementById("loginErrorMessage").hidden = true;
           if (document.getElementById("stayLoggedInCheck").checked) {
             savePasswordToLocalStorage(password);
@@ -197,10 +203,15 @@
           modal.hide();
         });
         myClient.on("close", (res) => {
-          window.localStorage.clear();
-          document.getElementById("loginErrorMessage").hidden = false;
-          myClient.end();
-          modal.show();
+          if(!connectionSuccess || connectionAttempts > 5){
+            window.localStorage.clear();
+            document.getElementById("loginErrorMessage").hidden = false;
+            myClient.end();
+            modal.show();
+          } else {
+            myClient.reconnect();
+          }
+          connectionAttempts++;
         });
       }
 
@@ -275,7 +286,7 @@
       }
 
       function calculateAmpelState(id, currentState) {
-        if (currentState === undefined || currentState === null) {
+	if (currentState === undefined || currentState === null) {
           currentState = false;
         }
         const element = document.getElementById(id);
