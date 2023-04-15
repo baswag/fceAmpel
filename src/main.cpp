@@ -225,8 +225,6 @@ void setup() {
   mqttConfigLoader = new MqttConfigurationLoader(SETTINGS_FILE, { "broker", "user", "password" }, settings);
   mqttConfigLoader->loadConfiguration();
   mqttConfig = mqttConfigLoader->getConfigFromInput();
-  pinMode(13, OUTPUT);
-  digitalWrite(13, HIGH);
   if(mqttConfig.user == "winde") {
     windeSetup.load(windeSetupPage);
     windeSetup.menu(true);
@@ -250,6 +248,8 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(ampelConfig.buttonPort), buttonPressed, FALLING);
     Portal.join({startwagenSetup});
   } else if(mqttConfig.user == "ampelSued" || mqttConfig.user == "ampelNord") {
+    pinMode(13, OUTPUT);
+    digitalWrite(13, HIGH);
     ampelSetup.load(ampelSetupPage);
     ampelSetup.menu(true);
     configLoader = new AmpelConfigurationLoader(PORT_FILE, {"ledPort", "ledLowOn", "useNeopixel", "numLeds", "blinkIntervalMs"}, ampelSetup);
@@ -348,12 +348,18 @@ void loop() {
   bool wifiConnected = WiFi.status() == WL_CONNECTED;
   settings.menu(wifiConnected);
   if(mqttUserInt == 0) {
+    if(isLedOn) {
+      turnLedOff();
+    }
     // Serial.println("no mqtt user");
     Portal.handleClient();
     return;
   }
 
   if(!wifiConnected){
+    if(isLedOn) {
+      turnLedOff();
+    }
     // Serial.println("Waiting for connection");
     Portal.handleClient();
     return;
