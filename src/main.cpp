@@ -1,3 +1,4 @@
+// #define AC_DEBUG
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
@@ -84,7 +85,9 @@ String savePorts(AutoConnectAux& aux, PageArgument& args) {
 }
 
 void reconnectMqtt() {
+  Serial.println("reconnect mqtt");
   if(mqttConfig.user.length() == 0) {
+    Serial.println("No MQTT User");
     return;
   }
   mqttUserInt = str2int(mqttConfig.user.c_str());
@@ -131,11 +134,10 @@ String onConnect(AutoConnectAux& aux, PageArgument& args){
 }
 
 void turnLedOn() {
-  Serial.println('turnLedOn');
   isLedOn = true;
   if(ampelConfig.useNeopixel){
     digitalWrite(13, HIGH);
-    delay(50);
+    delay(100);
     strip->ClearTo(neopixelOn);
     while(!strip->CanShow()) {
       
@@ -150,7 +152,6 @@ void turnLedOn() {
 }
 
 void turnLedOff() {
-  Serial.println('turnLedOff');
   isLedOn = false;
   if(ampelConfig.useNeopixel){
     strip->ClearTo(neopixelOff);
@@ -158,7 +159,9 @@ void turnLedOff() {
 
     }
     strip->Show();
-    delay(50);
+    while(!strip->CanShow()) {
+
+    }
     digitalWrite(13, LOW);
     return;
   }else if(ampelConfig.ledLowOn) {
@@ -169,15 +172,15 @@ void turnLedOff() {
 }
 
 void mqttCallback(char* topic, byte* message, unsigned int length) {
-  Serial.print("Message arrived on topic ");
+  // Serial.print("Message arrived on topic ");
   Serial.print(topic);
   String messageTemp;
   for (int i = 0; i < length; i++) {
     messageTemp += (char)message[i];
   }
-  Serial.print(": ");
-  Serial.print(messageTemp);
-  Serial.println();
+  // Serial.print(": ");
+  // Serial.print(messageTemp);
+  // Serial.println();
   if (String(topic) == COMMAND_TOPIC) {
     commandedState = messageTemp == "on";
     if(ampelNordInt == mqttUserInt || ampelSuedInt == mqttUserInt) {
@@ -212,6 +215,7 @@ void setup() {
   config.username = WEB_USER;
   config.password = WEB_PASS;
   config.psk = PSK;
+  // config.ota = AC_OTA_BUILTIN;
   config.autoReconnect = true;
   config.reconnectInterval = 6;
   Portal.config(config);
@@ -264,7 +268,7 @@ void setup() {
   mqttUserInt = str2int(mqttConfig.user.c_str());
   startwagenSetup.menu(mqttUserInt == startwagenInt);
   windeSetup.menu(mqttUserInt == windeInt);
-  Portal.onConnect(wifiConnected);
+  // Portal.onConnect(wifiConnected);
   Portal.join({settings, settingsSave, portSave});
   Portal.begin();
   Serial.println("Web Server started: " + WiFi.localIP().toString());
@@ -343,15 +347,14 @@ void doAmpel(char *topic) {
 void loop() {
   bool wifiConnected = WiFi.status() == WL_CONNECTED;
   settings.menu(wifiConnected);
-
   if(mqttUserInt == 0) {
-    Serial.println("no mqtt user");
+    // Serial.println("no mqtt user");
     Portal.handleClient();
     return;
   }
 
   if(!wifiConnected){
-    Serial.println('Waiting for connection');
+    // Serial.println("Waiting for connection");
     Portal.handleClient();
     return;
   }
