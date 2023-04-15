@@ -213,6 +213,7 @@ void setup() {
   config.password = WEB_PASS;
   config.psk = PSK;
   config.autoReconnect = true;
+  config.reconnectInterval = 6;
   Portal.config(config);
   portSave.load(portSavePage);
   portSave.menu(false);
@@ -255,13 +256,12 @@ void setup() {
     if(ampelConfig.useNeopixel) {
       strip = new NeoPixelBus<NeoRgbFeature, NeoEsp8266Dma800KbpsMethod>(ampelConfig.numLeds, 3);
       strip->Begin();
-      strip->ClearTo(neopixelOff);
-      strip->Show();
+      turnLedOff();
     }else {
       pinMode(ampelConfig.ledPort, OUTPUT);
     }
   }
-
+  mqttUserInt = str2int(mqttConfig.user.c_str());
   startwagenSetup.menu(mqttUserInt == startwagenInt);
   windeSetup.menu(mqttUserInt == windeInt);
   Portal.onConnect(wifiConnected);
@@ -353,6 +353,7 @@ void loop() {
   if(!wifiConnected){
     Serial.println('Waiting for connection');
     Portal.handleClient();
+    return;
   }
   if(!client.connected() && wifiConnected){
     reconnectMqtt();
